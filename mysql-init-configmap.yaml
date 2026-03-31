@@ -1,0 +1,30 @@
+# ──────────────────────────────────────────
+# CONFIGMAP — MySQL init script
+# Mounted into the MySQL pod at startup.
+# MySQL automatically runs any .sql file
+# dropped in /docker-entrypoint-initdb.d/
+# ──────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init-script
+data:
+  init.sql: |
+    USE demodb;
+
+    CREATE TABLE IF NOT EXISTS visitors (
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      pod_name   VARCHAR(255),
+      visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS app_config (
+      config_key   VARCHAR(100) PRIMARY KEY,
+      config_value VARCHAR(255)
+    );
+
+    INSERT INTO app_config (config_key, config_value) VALUES
+      ('app_name',    'OpenShift Demo App'),
+      ('environment', 'demo'),
+      ('version',     '1.0.0')
+    ON DUPLICATE KEY UPDATE config_value = VALUES(config_value);
