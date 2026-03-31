@@ -94,7 +94,25 @@ HTML = """
         <span style="color:#aaa; font-size:0.85rem;">{{ db_version }}</span>
       </div>
       {% endif %}
+      {% if visit_count %}
+      <div class="status-row">
+        <span>Total Visits</span>
+        <span style="color:#aaa; font-size:0.85rem;">{{ visit_count }}</span>
+      </div>
+      {% endif %}
     </div>
+
+    {% if app_config %}
+    <div class="status-block" style="margin-top:12px;">
+      <h2>App Config <span style="color:#444; font-weight:normal;">(from MySQL)</span></h2>
+      {% for key, val in app_config.items() %}
+      <div class="status-row">
+        <span style="color:#888;">{{ key }}</span>
+        <span style="color:#aaa; font-size:0.85rem;">{{ val }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     <p class="pod-name">Pod: {{ pod_name }}</p>
   </div>
@@ -108,11 +126,32 @@ def index():
     db_status_class = "ok"
     db_version = None
 
+    app_config = {}
+    visit_count = 0
+
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
         cursor = conn.cursor()
+
+        # Grab MySQL version
         cursor.execute("SELECT VERSION()")
         db_version = cursor.fetchone()[0]
+
+        # Log this visit
+        pod_name = os.environ.get("HOSTNAME", "local")
+        cursor.execute(
+            "INSERT INTO visitors (pod_name) VALUES (%s)", (pod_name,)
+        )
+        conn.commit()
+
+        # Total visit count
+        cursor.execute("SELECT COUNT(*) FROM visitors")
+        visit_count = cursor.fetchone()[0]
+
+        # Pull app_config table
+        cursor.execute("SELECT config_key, config_value FROM app_config")
+        app_config = {row[0]: row[1] for row in cursor.fetchall()}
+
         conn.close()
     except Exception as e:
         db_status = "● Unreachable"
@@ -126,6 +165,8 @@ def index():
         db_status_class=db_status_class,
         db_version=db_version,
         pod_name=pod_name,
+        app_config=app_config,
+        visit_count=visit_count,
     )
 
 @app.route("/healthz")
